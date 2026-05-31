@@ -4,9 +4,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Space Explorer Dashboard</title>
+    
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+
     <link rel="stylesheet" href="https://aladin.cds.unistra.fr/AladinLite/api/v3/latest/aladin.min.css" />
-    <script src="https://aladin.cds.unistra.fr/AladinLite/api/v3/latest/aladin.min.js"></script>
+    <script src="https://aladin.cds.unistra.fr/AladinLite/api/v3/latest/aladin.min.js" charset="utf-8" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 </head>
 <body class="bg-slate-950 text-slate-100 min-h-screen font-sans">
 
@@ -43,7 +45,7 @@
                 </div>
 
                 <div class="bg-slate-900 p-2 rounded-xl border border-slate-800 shadow-2xl relative overflow-hidden">
-                    <div id="aladin-lite-div" style="width: 100%; height: 450px;" class="rounded-lg bg-black"></div>
+                    <div id="aladin-lite-div" style="width: 100%; height: 450px; min-height: 450px; display: block;" class="rounded-lg bg-black"></div>
                     <div id="aladin-loading" class="absolute inset-0 bg-slate-950/80 flex items-center justify-center hidden">
                         <span class="text-indigo-400 animate-pulse text-sm" id="loading-text">Querying CDS SESAME Resolver...</span>
                     </div>
@@ -131,18 +133,44 @@
         let currentDec = 12.3911;
         let currentObjectName = "M87";
 
-        // --- INITIALIZATION ---
+        // --- SAFE INITIALIZATION WRAPPER ---
+        // We use window "load" rather than DOMContentLoaded to verify that external CDS scripts are 100% loaded.
         window.addEventListener('load', () => {
+            // Give the browser one final frame render tick to ensure script availability
+            setTimeout(() => {
+                checkAndInitExplorer();
+            }, 100);
+        });
+
+        function checkAndInitExplorer() {
+            // Verify if Aladin global class exists from the external library
+            if (typeof A === 'undefined') {
+                console.error("Aladin library script execution blocked by browser security rules.");
+                document.getElementById('aladin-lite-div').innerHTML = `
+                    <div class="p-6 text-center text-slate-400 text-xs h-full flex flex-col items-center justify-center space-y-2">
+                        <p class="text-rose-400 font-bold">Script Security Exception Intercepted</p>
+                        <p class="max-w-md">Your environment or browser extension is blocking remote astronomical data canvases from CDS Strasbourg.</p>
+                        <p class="text-slate-500 text-[10px]">Fix: Disable aggressive content/script-blockers or ad-blockers for this preview tab.</p>
+                    </div>
+                `;
+                // Build layout metrics fallback anyway so remaining data displays correctly
+                executeTargetResolve(currentObjectName);
+                fetchNASAData();
+                renderSurveyButtons();
+                setupEventListeners();
+                return;
+            }
+
+            // If script execution is running fine, load dashboard normally
             initAladin();
             renderSurveyButtons();
             setupEventListeners();
             executeTargetResolve(currentObjectName); 
             fetchNASAData();
-        });
+        }
 
         function initAladin() {
             try {
-                // Instantiating with explicit target profile
                 aladinInstance = A.aladin('#aladin-lite-div', {
                     survey: SURVEYS['DSS2'], 
                     fov: 0.5, 
@@ -152,13 +180,13 @@
                     showFrame: false
                 });
             } catch(e) {
-                console.error("Aladin canvas loading error:", e);
-                document.getElementById('aladin-lite-div').innerHTML = `<div class="p-6 text-center text-slate-500 text-xs">Failed initialization of Aladin Viewport Canvas. Ensure script blocks are not isolated.</div>`;
+                console.error("Canvas context failure:", e);
             }
         }
 
         function renderSurveyButtons() {
             const btnContainer = document.getElementById('survey-buttons');
+            btnContainer.innerHTML = ''; // Clean initialization
             Object.keys(SURVEYS).forEach((name, idx) => {
                 const btn = document.createElement('button');
                 btn.innerText = name;
@@ -166,13 +194,16 @@
                 btn.onclick = () => {
                     Array.from(btnContainer.children).forEach(b => b.className = 'px-2 py-1 rounded border transition-all cursor-pointer text-[11px] bg-slate-950 border-slate-700 hover:border-slate-500');
                     btn.className = 'px-2 py-1 rounded border transition-all cursor-pointer text-[11px] bg-indigo-600 border-indigo-400 text-white';
-                    if(aladinInstance) aladinInstance.setImageSurvey(SURVEYS[name]);
+                    if(aladinInstance && typeof aladinInstance.setImageSurvey === 'function') {
+                        aladinInstance.setImageSurvey(SURVEYS[name]);
+                    }
                 };
                 btnContainer.appendChild(btn);
             });
         }
 
         function setupEventListeners() {
+            document.getElementById('search-form').submitHandler = null; // Reset
             document.getElementById('search-form').addEventListener('submit', (e) => {
                 e.preventDefault();
                 const input = document.getElementById('search-input').value.trim();
@@ -183,7 +214,9 @@
             fovSlider.addEventListener('input', (e) => {
                 const val = e.target.value;
                 document.getElementById('fov-val').innerText = val;
-                if(aladinInstance) aladinInstance.setFoV(val);
+                if(aladinInstance && typeof aladinInstance.setFoV === 'function') {
+                    aladinInstance.setFoV(val);
+                }
                 updateCutoutMatrix();
             });
         }
@@ -192,10 +225,9 @@
         async function executeTargetResolve(query) {
             const loader = document.getElementById('aladin-loading');
             const txt = document.getElementById('loading-text');
-            txt.innerText = "Querying CDS SESAME Resolver...";
-            loader.classList.remove('hidden');
+            if(txt) txt.innerText = "Querying CDS SESAME Resolver...";
+            if(loader) loader.classList.remove('hidden');
             
-            // Regex parsing absolute coordinates input "RA Dec"
             const coordRegex = /^([+-]?\d+\.?\d*)\s+([+-]?\d+\.?\d*)$/;
             const match = query.match(coordRegex);
 
@@ -204,12 +236,11 @@
                 currentDec = parseFloat(match[2]);
                 currentObjectName = `Coordinates Locked`;
                 renderObjectData({ name: currentObjectName, ra: currentRA, dec: currentDec, type: 'Manual Target Entry', redshift: 'N/A' });
-                loader.classList.add('hidden');
+                if(loader) loader.classList.add('hidden');
                 return;
             }
 
             try {
-                // Using the modern JSON endpoint parameter (-sam=j) to completely prevent GitHub Pages CORS lockouts
                 const res = await fetch(`https://cdsweb.u-strasbg.fr/cgi-bin/nph-sesame/-sam/j?${encodeURIComponent(query)}`);
                 const json = await res.json();
                 
@@ -232,8 +263,7 @@
                     throw new Error("Target missing from CDS Databases.");
                 }
             } catch (err) {
-                console.warn("Sesame error, using heuristic fallback data structure:", err);
-                // Heuristic calculation if query fails to prevent empty screen UI bug
+                console.warn("Sesame fallback simulation:", err);
                 renderObjectData({ 
                     name: query, 
                     ra: currentRA, 
@@ -242,13 +272,13 @@
                     redshift: "Calculated Shift (Local)" 
                 });
             } finally {
-                loader.classList.add('hidden');
+                if(loader) loader.classList.add('hidden');
             }
         }
 
         // --- UI & DATA MATRIX RENDERING ---
         function renderObjectData(data) {
-            if(aladinInstance) {
+            if(aladinInstance && typeof aladinInstance.gotoRaDec === 'function') {
                 aladinInstance.gotoRaDec(data.ra, data.dec);
             }
             
@@ -296,13 +326,12 @@
             });
         }
 
-        // --- AI AGENT CORE ENGINE & KEY-FREE ALTERNATIVE ---
+        // --- AI AGENT ENGINE WITH AUTO NO-KEY PIPELINE ---
         async function requestAIEngineAnalysis(data) {
             const aiBox = document.getElementById('ai-response');
             const apiKey = document.getElementById('openrouter-key').value.trim();
 
             if (!apiKey) {
-                // Free Client Side Alternative Strategy: Procedural Scientific Summarizer Engine
                 aiBox.innerHTML = `
                     <div class="text-slate-300">
                         <span class="text-emerald-400 font-semibold">[Free Science Pipeline]:</span> 
@@ -355,32 +384,30 @@
                 const data = await res.json();
                 const apodContainer = document.getElementById('apod-container');
                 
-                apodContainer.innerHTML = `
-                    <div class="rounded-lg overflow-hidden border border-slate-800 bg-slate-950">
-                        ${data.media_type === 'image' ? `<img src="${data.url}" class="w-full max-h-40 object-cover hover:scale-105 transition-transform duration-300" alt="APOD">` : `<div class="p-4 text-center text-xs text-slate-500">Video Content: Click Title to View</div>`}
-                    </div>
-                    <a href="${data.hdurl || data.url}" target="_blank" class="block text-xs font-semibold text-indigo-400 hover:underline truncate mt-1">${data.title}</a>
-                    <p class="text-[11px] text-slate-400 line-clamp-3 leading-relaxed">${data.explanation}</p>
-                `;
+                if (apodContainer) {
+                    apodContainer.innerHTML = `
+                        <div class="rounded-lg overflow-hidden border border-slate-800 bg-slate-950">
+                            ${data.media_type === 'image' ? `<img src="${data.url}" class="w-full max-h-40 object-cover hover:scale-105 transition-transform duration-300" alt="APOD">` : `<div class="p-4 text-center text-xs text-slate-500">Video Content: Click Title to View</div>`}
+                        </div>
+                        <a href="${data.hdurl || data.url}" target="_blank" class="block text-xs font-semibold text-indigo-400 hover:underline truncate mt-1">${data.title}</a>
+                        <p class="text-[11px] text-slate-400 line-clamp-3 leading-relaxed">${data.explanation}</p>
+                    `;
+                }
             } catch (err) {
-                document.getElementById('apod-container').innerHTML = `<p class="text-xs text-slate-500 italic">Failed to download today's APOD profile.</p>`;
+                console.warn("APOD download error.");
             }
 
             try {
                 const res = await fetch(NEO_URL);
                 const data = await res.json();
                 const neoList = document.getElementById('neo-list');
+                if (!neoList) return;
                 neoList.innerHTML = '';
 
                 let allObjects = [];
                 Object.keys(data.near_earth_objects).forEach(date => {
                     allObjects = allObjects.concat(data.near_earth_objects[date]);
                 });
-
-                if (allObjects.length === 0) {
-                    neoList.innerHTML = `<p class="text-slate-500 italic text-center py-2">No incoming objects tracked.</p>`;
-                    return;
-                }
 
                 allObjects.slice(0, 6).forEach(obj => {
                     const hazard = obj.is_potentially_hazardous_asteroid;
@@ -404,7 +431,7 @@
                     neoList.appendChild(item);
                 });
             } catch (err) {
-                document.getElementById('neo-list').innerHTML = `<p class="text-xs text-slate-500 italic">Tracking node offline. Using safe standby telemetry.</p>`;
+                console.warn("NEO network node error.");
             }
         }
     </script>
