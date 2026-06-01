@@ -3,12 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Space Explorer Dashboard</title>
+    <title>Space Explorer Dashboard (Local Assets)</title>
     
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
 
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/cds-strasbourg/AladinLite@v3.3.0/dist/aladin.min.css" />
-    <script src="./js/aladin.min.js" charset="utf-8"></script>
+    <link rel="stylesheet" href="./aladin.min.css" />
+    <script src="./aladin.min.js" charset="utf-8"></script>
 </head>
 <body class="bg-slate-950 text-slate-100 min-h-screen font-sans">
 
@@ -47,7 +47,7 @@
                 <div class="bg-slate-900 p-2 rounded-xl border border-slate-800 shadow-2xl relative overflow-hidden">
                     <div id="aladin-lite-div" style="width: 100%; height: 450px; min-height: 450px; display: block;" class="rounded-lg bg-black"></div>
                     <div id="aladin-loading" class="absolute inset-0 bg-slate-950/80 flex items-center justify-center hidden">
-                        <span class="text-indigo-400 animate-pulse text-sm" id="loading-text">Querying Secure CDS SESAME Proxy...</span>
+                        <span class="text-indigo-400 animate-pulse text-sm" id="loading-text">Routing via secure CORS bypass engine...</span>
                     </div>
                 </div>
 
@@ -133,22 +133,19 @@
         let currentDec = 12.3911;
         let currentObjectName = "M87";
 
-        // --- SAFE INITIALIZATION WRAPPER ---
+        // --- EXPLICIT WINDOW LOAD WRAPPER ---
         window.addEventListener('load', () => {
-            setTimeout(() => {
-                checkAndInitExplorer();
-            }, 200);
-        });
-
-        function checkAndInitExplorer() {
+            // Check that files are located in root directory matching expectations
             if (typeof A === 'undefined') {
-                console.error("Aladin script execution blocked by browser environment protection policies.");
+                console.error("Critical Asset Missing: Ensure aladin.min.js and aladin.min.css exist in your root directory path.");
                 document.getElementById('aladin-lite-div').innerHTML = `
                     <div class="p-6 text-center text-slate-400 text-xs h-full flex flex-col items-center justify-center space-y-2">
-                        <p class="text-rose-400 font-bold">Script Intercept Exception</p>
-                        <p class="max-w-md">The external astronomical library failed to download. Running data framework sub-components in safe standby mode.</p>
+                        <p class="text-rose-400 font-bold">Local File Execution Exception</p>
+                        <p class="max-w-md">The application could not locate the local <code>aladin.min.js</code> script asset file at your project's root folder.</p>
+                        <p class="text-slate-500 text-[11px]">Action: Download the engine file from jsDelivr and commit it next to this index.html file inside your repository.</p>
                     </div>
                 `;
+                // Fire safe dependency fallback paths
                 executeTargetResolve(currentObjectName);
                 fetchNASAData();
                 renderSurveyButtons();
@@ -156,12 +153,13 @@
                 return;
             }
 
+            // Normal initialization pathway
             initAladin();
             renderSurveyButtons();
             setupEventListeners();
             executeTargetResolve(currentObjectName); 
             fetchNASAData();
-        }
+        });
 
         function initAladin() {
             try {
@@ -174,7 +172,7 @@
                     showFrame: false
                 });
             } catch(e) {
-                console.error("Canvas mounting layer crashed: ", e);
+                console.error("Canvas setup exception: ", e);
             }
         }
 
@@ -214,11 +212,11 @@
             });
         }
 
-        // --- SECURE PROXIED CDS SESAME JSON RESOLVER (Bypasses GitHub Pages CORS) ---
+        // --- ALLORIGINS PROXIED SECURE CORS SESAME RESOLVER ---
         async function executeTargetResolve(query) {
             const loader = document.getElementById('aladin-loading');
             const txt = document.getElementById('loading-text');
-            if(txt) txt.innerText = "Routing via secure CORS bypass engine...";
+            if(txt) txt.innerText = "Querying via AllOrigins CORS proxy node...";
             if(loader) loader.classList.remove('hidden');
             
             const coordRegex = /^([+-]?\d+\.?\d*)\s+([+-]?\d+\.?\d*)$/;
@@ -234,9 +232,7 @@
             }
 
             try {
-                // Primary Strasbourg resource URL
                 const targetUrl = `https://cdsweb.u-strasbg.fr/cgi-bin/nph-sesame/-sam/j?${encodeURIComponent(query)}`;
-                // Wrapped completely via the AllOrigins anonymous proxy framework
                 const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}`;
 
                 const res = await fetch(proxyUrl);
@@ -256,13 +252,13 @@
                         currentObjectName = query;
                         renderObjectData({ name: query, ra, dec, type: otype, redshift: z });
                     } else {
-                        throw new Error("Coordinate payload malformed.");
+                        throw new Error("Coordinate fields empty.");
                     }
                 } else {
-                    throw new Error("Target missing from system catalogs.");
+                    throw new Error("Target missing from CDS database schema.");
                 }
             } catch (err) {
-                console.warn("Proxy fallback simulation activated:", err);
+                console.warn("Proxy exception caught, falling back smoothly:", err);
                 renderObjectData({ 
                     name: query, 
                     ra: currentRA, 
@@ -311,7 +307,7 @@
             container.innerHTML = '';
 
             CUTOUT_SURVEYS.forEach(survey => {
-                // Route through Alasky's secondary unblocked edge server node to completely avoid header dropping
+                // Route through Alasky's explicit mirror node to avoid mixed content header tracking issues on gitpages
                 const url = `https://alasky.unistra.fr/MocServer/query?hips=${encodeURIComponent(survey.hips)}&ra=${currentRA}&dec=${currentDec}&width=250&height=250&fov=${fov}&get=image&format=jpeg`;
                 
                 const wrapper = document.createElement('div');
@@ -326,7 +322,7 @@
             });
         }
 
-        // --- AI AGENT CORE ENGINE (WITH DETERMINISTIC SAFE FALLBACK) ---
+        // --- AI AGENT DETAILED SCIENTIFIC PIPELINE ---
         async function requestAIEngineAnalysis(data) {
             const aiBox = document.getElementById('ai-response');
             const apiKey = document.getElementById('openrouter-key').value.trim();
@@ -367,10 +363,10 @@
                 if (resData.choices && resData.choices[0]?.message?.content) {
                     aiBox.innerText = resData.choices[0].message.content.trim();
                 } else {
-                    throw new Error("API stream misconfigured.");
+                    throw new Error("Payload format error.");
                 }
             } catch (err) {
-                aiBox.innerHTML = `<span class="text-amber-400 text-xs">OpenRouter rejected key profile. Using local automated parser engine instead.</span>`;
+                aiBox.innerHTML = `<span class="text-amber-400 text-xs">OpenRouter rejected query key profile. Reverting to structural fallback synthesis.</span>`;
             }
         }
 
@@ -394,7 +390,7 @@
                     `;
                 }
             } catch (err) {
-                console.warn("NASA APOD failed to update.");
+                console.warn("NASA APOD stream tracking dropped.");
             }
 
             try {
@@ -431,7 +427,7 @@
                     neoList.appendChild(item);
                 });
             } catch (err) {
-                console.warn("NASA CNEOS Radar Stream down.");
+                console.warn("NASA CNEOS radar connection down.");
             }
         }
     </script>
